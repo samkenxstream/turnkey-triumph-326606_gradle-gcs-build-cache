@@ -19,7 +19,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.google.cloud:google-cloud-storage:1.96.0")
+    implementation("com.google.cloud:google-cloud-storage:1.113.1")
     implementation(kotlin("stdlib-jdk8"))
 }
 

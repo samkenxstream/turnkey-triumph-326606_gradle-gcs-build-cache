@@ -23,7 +23,6 @@ import org.gradle.caching.configuration.AbstractBuildCache
  * @author Thorsten Ehlers (thorsten.ehlers@googlemail.com) (initial creation)
  */
 abstract class GCSBuildCache(
-    var credentials: String? = "",
     var bucket: String? = "",
     var refreshAfterSeconds: Int? = 0
 ) : AbstractBuildCache()

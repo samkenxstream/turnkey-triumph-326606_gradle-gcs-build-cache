@@ -15,7 +15,6 @@
  */
 package net.idlestate.gradle.caching
 
-import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.storage.Bucket
 import com.google.cloud.storage.StorageException
 import com.google.cloud.storage.StorageOptions
@@ -25,8 +24,6 @@ import org.gradle.caching.BuildCacheException
 import org.gradle.caching.BuildCacheKey
 import org.gradle.caching.BuildCacheService
 import java.io.ByteArrayOutputStream
-import java.io.FileInputStream
-import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.channels.Channels
 import java.time.Instant
@@ -38,19 +35,16 @@ import java.time.Instant
  *
  * @author Thorsten Ehlers (thorsten.ehlers@googlemail.com) (initial creation)
  */
-class GCSBuildCacheService(credentials: String, val bucketName: String, val refreshAfterSeconds: Long) : BuildCacheService {
+class GCSBuildCacheService(val bucketName: String, val refreshAfterSeconds: Long) : BuildCacheService {
     private val bucket: Bucket
 
     init {
         try {
             val storage = StorageOptions.newBuilder()
-                .setCredentials(ServiceAccountCredentials.fromStream(FileInputStream(credentials)))
                 .build()
                 .service
 
             bucket = storage.get(bucketName) ?: throw BuildCacheException("$bucketName is unavailable")
-        } catch (e: FileNotFoundException) {
-            throw BuildCacheException("Unable to load credentials from $credentials.", e)
         } catch (e: IOException) {
             throw BuildCacheException("Unable to access Google Cloud Storage bucket '$bucketName'.", e)
         } catch (e: StorageException) {

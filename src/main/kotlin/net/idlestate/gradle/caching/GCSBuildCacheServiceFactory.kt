@@ -26,13 +26,8 @@ import org.gradle.caching.BuildCacheServiceFactory
  */
 class GCSBuildCacheServiceFactory : BuildCacheServiceFactory<GCSBuildCache> {
     override fun createBuildCacheService(configuration: GCSBuildCache, describer: BuildCacheServiceFactory.Describer): BuildCacheService {
-        val credentials = configuration.credentials
         val bucket = configuration.bucket
         val refreshAfterSeconds = configuration.refreshAfterSeconds ?: 0
-
-        if (credentials == null || credentials == "") {
-            throw gradleException("The path to the credentials of the service account has to be defined.")
-        }
 
         if (bucket == null || bucket == "") {
             throw gradleException("The name of the bucket has to be defined.")
@@ -40,11 +35,10 @@ class GCSBuildCacheServiceFactory : BuildCacheServiceFactory<GCSBuildCache> {
 
         describer
                 .type("Google Cloud Storage")
-                .config("credentials", credentials)
                 .config("bucket", bucket)
                 .config("refreshAfterSeconds", refreshAfterSeconds.toString())
 
-        return GCSBuildCacheService(credentials, bucket, refreshAfterSeconds.toLong())
+        return GCSBuildCacheService(bucket, refreshAfterSeconds.toLong())
     }
 
     fun gradleException(message: String): GradleException {
@@ -52,7 +46,6 @@ class GCSBuildCacheServiceFactory : BuildCacheServiceFactory<GCSBuildCache> {
                 $message
 
                 remote( GCSBuildCache.class ) {
-                    credentials = 'my-key.json'
                     bucket = 'my-bucket'
                     refreshAfterSeconds = 86400 // 24h (optional)
                     enabled = true
