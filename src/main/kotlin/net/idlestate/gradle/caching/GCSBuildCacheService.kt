@@ -46,8 +46,14 @@ class GCSBuildCacheService(val bucketName: String, val refreshAfterSeconds: Long
 
             bucket = storage.get(bucketName) ?: throw BuildCacheException("$bucketName is unavailable")
         } catch (e: IOException) {
-            throw BuildCacheException("Unable to access Google Cloud Storage bucket '$bucketName'.", e)
+            throw BuildCacheException("IOException when accessing Google Cloud Storage bucket '$bucketName'.", e)
         } catch (e: StorageException) {
+            val code = e.code
+            val message = e.message
+            System.err.println("Received error code ($code) accessing GCS: $message")
+            if (code == 401 || code == 403) {
+                System.err.println("You may need to reauthenticate with GCS")
+            }
             throw BuildCacheException("Unable to access Google Cloud Storage bucket '$bucketName'.", e)
         }
     }
