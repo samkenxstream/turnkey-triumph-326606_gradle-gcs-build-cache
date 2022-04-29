@@ -36,24 +36,38 @@ import java.time.Instant
  * @author Thorsten Ehlers (thorsten.ehlers@googlemail.com) (initial creation)
  */
 class GCSBuildCacheService(val bucketName: String, val refreshAfterSeconds: Long) : BuildCacheService {
-    private val bucket: Bucket
+    private var bucket: Bucket? = null
+
+    companion object {
+        fun mightRequireReauthentication(exc: StorageException): Boolean =
+            exc.code == 400 || exc.code == 401 || exc.code == 403
+    }
 
     init {
-        try {
-            val storage = StorageOptions.newBuilder()
-                .build()
-                .service
+        initStorage()
+    }
 
-            bucket = storage.get(bucketName) ?: throw BuildCacheException("$bucketName is unavailable")
+    fun initBucket(): Bucket {
+        val storage = StorageOptions.newBuilder()
+            .build()
+            .service
+
+        return storage.get(bucketName) ?: throw BuildCacheException("$bucketName is unavailable")
+    }
+
+
+    fun initStorage() {
+        try {
+            bucket = initBucket()
         } catch (e: IOException) {
             throw BuildCacheException("IOException when accessing Google Cloud Storage bucket '$bucketName'.", e)
         } catch (e: StorageException) {
-            val code = e.code
             var advice = ""
-            if (code == 400 || code == 401 || code == 403) {
+            if (mightRequireReauthentication(e)) {
+                bucket = null
                 advice = ", you may need to run `gcloud auth login --update-adc`"
             }
-            throw BuildCacheException("Unable to access Google Cloud Storage bucket '$bucketName' (status $code)$advice.", e)
+            throw BuildCacheException("Unable to access Google Cloud Storage bucket '$bucketName' (status $e.code)$advice.", e)
         }
     }
 
@@ -61,16 +75,27 @@ class GCSBuildCacheService(val bucketName: String, val refreshAfterSeconds: Long
         val value = ByteArrayOutputStream()
         writer.writeTo(value)
 
+        if (bucket == null) {
+            bucket = initBucket()
+        }
+
         try {
-            bucket.create(key.hashCode, value.toByteArray())
+            bucket!!.create(key.hashCode, value.toByteArray())
         } catch (e: StorageException) {
+            if (mightRequireReauthentication(e)) {
+                bucket = null
+            }
             throw BuildCacheException("Unable to store '${key.hashCode}' in Google Cloud Storage bucket '$bucketName'.", e)
         }
     }
 
     override fun load(key: BuildCacheKey, reader: BuildCacheEntryReader): Boolean {
+        if (bucket == null) {
+            initStorage()
+        }
+
         try {
-            val blob = bucket.get(key.hashCode)
+            val blob = bucket!!.get(key.hashCode)
 
             if (blob != null) {
                 reader.readFrom(Channels.newInputStream(blob.reader()))
@@ -79,13 +104,16 @@ class GCSBuildCacheService(val bucketName: String, val refreshAfterSeconds: Long
                     // Update creation time so that artifacts that are still used won't be deleted.
                     val createTime = Instant.ofEpochMilli(blob.createTime)
                     if (createTime.plusSeconds(refreshAfterSeconds).isBefore(Instant.now())) {
-                        bucket.create(key.hashCode, blob.getContent())
+                        bucket!!.create(key.hashCode, blob.getContent())
                     }
                 }
 
                 return true
             }
         } catch (e: StorageException) {
+            if (mightRequireReauthentication(e)) {
+                bucket = null
+            }
             // https://github.com/googleapis/google-cloud-java/issues/3402
             if (e.message?.contains("404") == true) {
                 return false
